@@ -19,7 +19,7 @@ The sample results are in output_files.
 
 ### Demo Run
 
-RunL
+Run:
 
 ```
 python lanelines.py
