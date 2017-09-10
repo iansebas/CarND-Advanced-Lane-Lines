@@ -50,8 +50,6 @@ The distortion correction can be displayed in the following images. The correcti
 
 #### 1. Provide an example of a distortion-corrected image.
 
-![alt text](./figures/color.jpg "distorted")
-
 ![alt text](./figures/corrected.jpg "corrected")
 
 
