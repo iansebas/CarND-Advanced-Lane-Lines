@@ -44,8 +44,6 @@ The distortion correction can be displayed in the following images. The correcti
 ![alt text](./figures/undistorted.jpg "corrected")
 
 
-![alt text][image1]
-
 ### Pipeline (single images)
 
 #### 1. Provide an example of a distortion-corrected image.
