@@ -78,7 +78,7 @@ def calculate_src_and_dest(self,img):
     return src_w, dst_w
 ```
 
-The results in the original image and in the binary image are:
+The results in the original image and in the binary warped image are:
 
 ![alt text](./figures/source.jpg "source")
 ![alt text](./figures/warped.jpg "destination")
@@ -90,6 +90,9 @@ The results in the original image and in the binary image are:
 #### 4. Describe how (and identify where in your code) you identified lane-line pixels and fit their positions with a polynomial?
 
 The method blind_histogram_search() in line 350, and margin_search() in line 445 find the points to fit the polynomial, and fit a curve.
+The first method is only used in the first frame, when we search all over the image for the possible lane lines. After the first frame, margin_search uses the past location to search locally.
+
+
 The resulting area enclosed look as follow:
 
 ![alt text](./figures/dest.jpg "fit")
