@@ -1,41 +1,33 @@
-## Writeup Template
+# Advanced Lane Line Finding
 
-### You can use this file as a template for your writeup if you want to submit it as a markdown file, but feel free to use some other method and submit a pdf if you prefer.
+## Overview
 
----
+This repository contains a Python program to find lane lines on the road.
 
-**Advanced Lane Finding Project**
+All the code is in lanelines.py
+The sample results are in output_files.
 
-The goals / steps of this project are the following:
+## Dependencies
 
-* Compute the camera calibration matrix and distortion coefficients given a set of chessboard images.
-* Apply a distortion correction to raw images.
-* Use color transforms, gradients, etc., to create a thresholded binary image.
-* Apply a perspective transform to rectify binary image ("birds-eye view").
-* Detect lane pixels and fit to find the lane boundary.
-* Determine the curvature of the lane and vehicle position with respect to center.
-* Warp the detected lane boundaries back onto the original image.
-* Output visual display of the lane boundaries and numerical estimation of lane curvature and vehicle position.
+* Python 3.5
+* NumPy
+* OpenCV
+* Matplotlib
+* MoviePy
 
-[//]: # (Image References)
+## Running the code
 
-[image1]: ./examples/undistort_output.png "Undistorted"
-[image2]: ./test_images/test1.jpg "Road Transformed"
-[image3]: ./examples/binary_combo_example.jpg "Binary Example"
-[image4]: ./examples/warped_straight_lines.jpg "Warp Example"
-[image5]: ./examples/color_fit_lines.jpg "Fit Visual"
-[image6]: ./examples/example_output.jpg "Output"
-[video1]: ./project_video.mp4 "Video"
+### Demo Run
 
-## [Rubric](https://review.udacity.com/#!/rubrics/571/view) Points
+RunL
 
-### Here I will consider the rubric points individually and describe how I addressed each point in my implementation.  
+```
+python lanelines.py
+```
 
----
+## Writeup / Reflection
 
-### Writeup / README
-
-#### 1. Provide a Writeup / README that includes all the rubric points and how you addressed each one.  You can submit your writeup as markdown or pdf.  [Here](https://github.com/udacity/CarND-Advanced-Lane-Lines/blob/master/writeup_template.md) is a template writeup for this project you can use as a guide and a starting point.  
+#### 1. Provide a Writeup / README that includes all the rubric points and how you addressed each one. 
 
 You're reading it!
 
@@ -43,11 +35,14 @@ You're reading it!
 
 #### 1. Briefly state how you computed the camera matrix and distortion coefficients. Provide an example of a distortion corrected calibration image.
 
-The code for this step is contained in the first code cell of the IPython notebook located in "./examples/example.ipynb" (or in lines # through # of the file called `some_file.py`).  
+The whole camera calibration process is implemented in the Camera_Calibrator class in line 53 of lanelines.py. The  extract_calibration_points() method in line 64 obtains "object points" (real position of the chessboard corners in the world) and the "image points" (position of corners in the image). With those, the calibrate_camera() method in line 98 calculates the camera calibration and distortion coefficients. Those coefficients are used in cv2.undistort() to undistort an image.
 
-I start by preparing "object points", which will be the (x, y, z) coordinates of the chessboard corners in the world. Here I am assuming the chessboard is fixed on the (x, y) plane at z=0, such that the object points are the same for each calibration image.  Thus, `objp` is just a replicated array of coordinates, and `objpoints` will be appended with a copy of it every time I successfully detect all chessboard corners in a test image.  `imgpoints` will be appended with the (x, y) pixel position of each of the corners in the image plane with each successful chessboard detection.  
+The distortion correction can be displayed in the following images. The correction is more obviously seen in the top border of the image.
 
-I then used the output `objpoints` and `imgpoints` to compute the camera calibration and distortion coefficients using the `cv2.calibrateCamera()` function.  I applied this distortion correction to the test image using the `cv2.undistort()` function and obtained this result: 
+![alt text](./figured/distorted.jpg "distorted")
+
+![alt text](./figured/undistorted.jpg "corrected")
+
 
 ![alt text][image1]
 
@@ -55,60 +50,92 @@ I then used the output `objpoints` and `imgpoints` to compute the camera calibra
 
 #### 1. Provide an example of a distortion-corrected image.
 
-To demonstrate this step, I will describe how I apply the distortion correction to one of the test images like this one:
-![alt text][image2]
+![alt text](./figured/color.jpg "distorted")
+
+![alt text](./figured/corrected.jpg "corrected")
+
 
 #### 2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image.  Provide an example of a binary image result.
 
-I used a combination of color and gradient thresholds to generate a binary image (thresholding steps at lines # through # in `another_file.py`).  Here's an example of my output for this step.  (note: this is not actually from one of the test images)
+The thesholded binary is produced by the apply_all() method of the Thresholder class in line 254. A mask is used first to only consider the expected location of the road. (line 259). Then, the horizontal gradient, vertical gradient, magnitude of the gradient, direction of the gradient, S channel and L channel (in HLS space)are combines as follow in line 273:
 
-![alt text][image3]
+```python
+gradient_bin[( ( (gradx == 1) | (grady == 1)| (s_binary == 1) ) & ((dir_binary == 1) & (mag_binary == 1)) )] = 1
+...
+combined_binary[(gradient_bin == 1) | (l_binary == 1)] = 1
+```
+The result of this is:
+
+![alt text](./figured/binary.jpg "binary")
 
 #### 3. Describe how (and identify where in your code) you performed a perspective transform and provide an example of a transformed image.
 
-The code for my perspective transform includes a function called `warper()`, which appears in lines 1 through 8 in the file `example.py` (output_images/examples/example.py) (or, for example, in the 3rd code cell of the IPython notebook).  The `warper()` function takes as inputs an image (`img`), as well as source (`src`) and destination (`dst`) points.  I chose the hardcode the source and destination points in the following manner:
+In line 134, the method warp() of the class Perspective_Transformer transforms the image. The source and destination are calculated in line 509 as follow:
 
 ```python
-src = np.float32(
-    [[(img_size[0] / 2) - 55, img_size[1] / 2 + 100],
-    [((img_size[0] / 6) - 10), img_size[1]],
-    [(img_size[0] * 5 / 6) + 60, img_size[1]],
-    [(img_size[0] / 2 + 55), img_size[1] / 2 + 100]])
-dst = np.float32(
-    [[(img_size[0] / 4), 0],
-    [(img_size[0] / 4), img_size[1]],
-    [(img_size[0] * 3 / 4), img_size[1]],
-    [(img_size[0] * 3 / 4), 0]])
+def calculate_src_and_dest(self,img):
+    img_size = (img.shape[1], img.shape[0])
+    src_w = np.float32([[img_size[0]*0.4, img_size[1]*0.625],[img_size[0] *0.1, img_size[1]], [img_size[0]*0.9725, img_size[1]],[img_size[0]*0.6, img_size[1]*0.625]])
+    dst_w = np.float32([[(img_size[0] / 4), 0],[(img_size[0] / 4), img_size[1]],[(img_size[0] * 3 / 4), img_size[1]],[(img_size[0] * 3 / 4), 0]])
+    return src_w, dst_w
 ```
 
-This resulted in the following source and destination points:
+The results in the original image and in the binary image are:
 
-| Source        | Destination   | 
-|:-------------:|:-------------:| 
-| 585, 460      | 320, 0        | 
-| 203, 720      | 320, 720      |
-| 1127, 720     | 960, 720      |
-| 695, 460      | 960, 0        |
+![alt text](./figured/source.jpg "source")
+![alt text](./figured/warped.jpg "destination")
 
-I verified that my perspective transform was working as expected by drawing the `src` and `dst` points onto a test image and its warped counterpart to verify that the lines appear parallel in the warped image.
+
 
 ![alt text][image4]
 
 #### 4. Describe how (and identify where in your code) you identified lane-line pixels and fit their positions with a polynomial?
 
-Then I did some other stuff and fit my lane lines with a 2nd order polynomial kinda like this:
+The method blind_histogram_search() in line 350, and margin_search() in line 445 find the points to fit the polynomial, and fit a curve.
+The resulting area enclosed look as follow:
 
-![alt text][image5]
+![alt text](./figured/dest.jpg "fit")
 
 #### 5. Describe how (and identify where in your code) you calculated the radius of curvature of the lane and the position of the vehicle with respect to center.
 
-I did this in lines # through # in my code in `my_other_file.py`
+The following methods in line 321 are part of the Sliding_Window_Search()  class and calculate the curvature, and vehicle position respectively:
+```python
+    def find_curvature(self):
+        # Define conversions in x and y from pixels space to meters
+        ym_per_pix = 29.0/720 # meters per pixel in y dimension
+        xm_per_pix = 3.0/700 # meters per pixel in x dimension
+
+        # Fit new polynomials to x,y in world space
+        plot_y = self.ploty*ym_per_pix
+        left_x = self.left_line.bestx*xm_per_pix
+        right_x = self.right_line.bestx*xm_per_pix
+        left_fit_cr = np.polyfit(plot_y, left_x, 2)
+        right_fit_cr = np.polyfit(plot_y, right_x, 2)
+        # Calculate the new radii of curvature
+        y_eval = np.max(plot_y)
+        left_curverad = ((1 + (2*left_fit_cr[0]*y_eval*ym_per_pix + left_fit_cr[1])**2)**1.5) / np.absolute(2*left_fit_cr[0])
+        right_curverad = ((1 + (2*right_fit_cr[0]*y_eval*ym_per_pix + right_fit_cr[1])**2)**1.5) / np.absolute(2*right_fit_cr[0])
+    
+        self.left_line.radius_of_curvature = left_curverad
+        self.right_line.radius_of_curvature = right_curverad
+
+        return (self.left_line.radius_of_curvature + self.right_line.radius_of_curvature)/2.0
+
+    def find_vehicle_pos(self):
+        ym_per_pix = 29.0/720 # meters per pixel in y dimension
+        xm_per_pix = 3.0/700 # meters per pixel in x dimension
+        vehicle_pos = self.left_line.line_base_pos*xm_per_pix
+        return vehicle_pos
+```
 
 #### 6. Provide an example image of your result plotted back down onto the road such that the lane area is identified clearly.
 
-I implemented this step in lines # through # in my code in `yet_another_file.py` in the function `map_lane()`.  Here is an example of my result on a test image:
+Using the unwarp method in (line 554), we are able to obtain the following result:
 
-![alt text][image6]
+![alt text](./output_files/test2.jpg "final result")
+
+##### Other sample results can be checked out in the "/output_files" folder.
+
 
 ---
 
@@ -116,7 +143,7 @@ I implemented this step in lines # through # in my code in `yet_another_file.py`
 
 #### 1. Provide a link to your final video output.  Your pipeline should perform reasonably well on the entire project video (wobbly lines are ok but no catastrophic failures that would cause the car to drive off the road!).
 
-Here's a [link to my video result](./project_video.mp4)
+Here's a [link to my video result](./output_files/project_video.mp4)
 
 ---
 
@@ -124,4 +151,10 @@ Here's a [link to my video result](./project_video.mp4)
 
 #### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
 
-Here I'll talk about the approach I took, what techniques I used, what worked and why, where the pipeline might fail and how I might improve it if I were going to pursue this project further.  
+
+- I do not use any type of filtering. Therefore, this pipeline is not very robust to outliers, which can be caused by sudden change in light conditions for instance. To add robustness, averaging the fitted coefficients over a time window could be added.
+
+- This pipeline does not work real-time. The image could be subsampled/compressed to improve the time-efficiency.
+
+- The parameters for all the functions were chosen with images that were taken in full daylight. More diverse images could be used to choose more robust parameters.
+  
