@@ -39,9 +39,9 @@ The whole camera calibration process is implemented in the Camera_Calibrator cla
 
 The distortion correction can be displayed in the following images. The correction is more obviously seen in the top border of the image.
 
-![alt text](./figured/distorted.jpg "distorted")
+![alt text](./figures/distorted.jpg "distorted")
 
-![alt text](./figured/undistorted.jpg "corrected")
+![alt text](./figures/undistorted.jpg "corrected")
 
 
 ![alt text][image1]
@@ -50,9 +50,9 @@ The distortion correction can be displayed in the following images. The correcti
 
 #### 1. Provide an example of a distortion-corrected image.
 
-![alt text](./figured/color.jpg "distorted")
+![alt text](./figures/color.jpg "distorted")
 
-![alt text](./figured/corrected.jpg "corrected")
+![alt text](./figures/corrected.jpg "corrected")
 
 
 #### 2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image.  Provide an example of a binary image result.
@@ -66,7 +66,7 @@ combined_binary[(gradient_bin == 1) | (l_binary == 1)] = 1
 ```
 The result of this is:
 
-![alt text](./figured/binary.jpg "binary")
+![alt text](./figures/binary.jpg "binary")
 
 #### 3. Describe how (and identify where in your code) you performed a perspective transform and provide an example of a transformed image.
 
@@ -82,8 +82,8 @@ def calculate_src_and_dest(self,img):
 
 The results in the original image and in the binary image are:
 
-![alt text](./figured/source.jpg "source")
-![alt text](./figured/warped.jpg "destination")
+![alt text](./figures/source.jpg "source")
+![alt text](./figures/warped.jpg "destination")
 
 
 
@@ -94,7 +94,7 @@ The results in the original image and in the binary image are:
 The method blind_histogram_search() in line 350, and margin_search() in line 445 find the points to fit the polynomial, and fit a curve.
 The resulting area enclosed look as follow:
 
-![alt text](./figured/dest.jpg "fit")
+![alt text](./figures/dest.jpg "fit")
 
 #### 5. Describe how (and identify where in your code) you calculated the radius of curvature of the lane and the position of the vehicle with respect to center.
 
