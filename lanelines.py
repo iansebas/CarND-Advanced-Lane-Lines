@@ -38,7 +38,7 @@ class Line():
         self.current_fit = [np.array([False])]  
         #radius of curvature of the line in some units
         self.radius_of_curvature = None 
-        #distance in meters of vehicle center from the line
+        #distance in pixels of vehicle center from the line
         self.line_base_pos = None 
         #difference in fit coefficients between last and new fits
         self.diffs = np.array([0,0,0], dtype='float') 
@@ -46,6 +46,8 @@ class Line():
         self.allx = None  
         #y values for detected line pixels
         self.ally = None
+
+        self.all_param = []
 
 
 
@@ -156,13 +158,13 @@ class Thresholder():
         self.abs_thresh_x = (2, 100)
         self.abs_thresh_y = (100, 255)
 
-        self.mag_thresh = (50, 255)
+        self.mag_thresh = (40, 255)
 
-        self.dir_thresh = (0.8, 1.2)
+        self.dir_thresh = (0.9, 1.1)
 
-        self.h_thresh = (200, 255)
-        self.l_thresh = (1, 255)
-        self.s_thresh = (100, 255)
+        self.h_thresh = (90, 100)
+        self.l_thresh = (200, 255)
+        self.s_thresh = (190, 255)
 
 
     def abs_sobel_threshold(self, channel, orient='x'):
@@ -213,17 +215,12 @@ class Thresholder():
         # Return the binary image
         return binary_output
 
-    def color_select(self,channel,hls_c):
+    def color_select(self,channel, threshold):
 
-        if hls_c == 'l':
-            hls_thresh = self.l_thresh
-        if hls_c == 's':
-            hls_thresh = self.s_thresh
-        else :
-            hls_thresh = self.h_thresh
+        thresh = threshold
 
         binary_output = np.zeros_like(channel)
-        binary_output[(channel > hls_thresh[0]) & (channel <= hls_thresh[1])] = 1
+        binary_output[(channel > thresh[0]) & (channel <= thresh[1])] = 1
         return binary_output
 
     def region_of_interest(self, img, vertices):
@@ -255,15 +252,21 @@ class Thresholder():
         # we only consider edges in region of interest (roi)
         y_size = img.shape[0]
         x_size = img.shape[1]
-        vertices = np.array([[(x_size*0.55,y_size*0.6),(x_size*0.45, y_size*0.6), (x_size*0.05, y_size), (x_size*0.95,y_size)]], dtype=np.int32)
-        image = self.region_of_interest(img, vertices)
+        vertices = np.array([[(x_size*0.55,y_size*0.6),(x_size*0.4775, y_size*0.6), (x_size*0.1, y_size), (x_size*0.975,y_size)]], dtype=np.int32)
+        img = self.region_of_interest(img, vertices)
 
-        hls = cv2.cvtColor(image, cv2.COLOR_RGB2HLS)
+        hsv = cv2.cvtColor(img, cv2.COLOR_RGB2HSV)
+        h_channel = hsv[:,:,0]
+
+
+        hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS)
         l_channel = hls[:,:,1]
         s_channel = hls[:,:,2]
 
-        l_binary = self.color_select(l_channel,'l')
-        s_binary = self.color_select(s_channel,'s')
+        h_binary = self.color_select(h_channel,self.h_thresh)
+        l_binary = self.color_select(l_channel,self.l_thresh)
+        s_binary = self.color_select(s_channel,self.s_thresh)
+
         gradx = self.abs_sobel_threshold(s_binary*255, orient='x')
         grady = self.abs_sobel_threshold(s_binary*255, orient='y')
         mag_binary = self.mag_threshold(s_binary*255)
@@ -273,23 +276,25 @@ class Thresholder():
         gradient_bin[( ( (gradx == 1) | (grady == 1)| (s_binary == 1) ) & ((dir_binary == 1) & (mag_binary == 1)) )] = 1
 
         combined_binary = np.zeros_like(mag_binary)
-        combined_binary[(gradient_bin == 1) | (l_binary == 1)] = 1
+        combined_binary[((s_binary == 1)  & (mag_binary == 1)) | (l_binary == 1)] = 1
 
         binary = combined_binary
 
-        '''
+
         cv2.imwrite('figures/check_gradx.jpg',gradx*255)
         cv2.imwrite('figures/check_grady.jpg',grady*255)
         cv2.imwrite('figures/check_mag.jpg',mag_binary*255)
         cv2.imwrite('figures/check_dir.jpg',dir_binary*255)
+
         cv2.imwrite('figures/check_l_channel.jpg',l_binary*255)
         cv2.imwrite('figures/check_s_channel.jpg',s_binary*255)
+        cv2.imwrite('figures/check_h_channel.jpg',h_binary*255)
 
-        cv2.imwrite('figures/check_original.jpg',image)
         cv2.imwrite('figures/check_region.jpg',img)
         cv2.imwrite('figures/check_gradient.jpg',gradient_bin*255)
         cv2.imwrite('figures/check_binary.jpg',binary*255)
-        '''
+
+
 
         return binary
 
@@ -318,11 +323,14 @@ class Sliding_Window_Search():
 
             self.iteration = 0
 
+            self.xm_per_pix = None
+
+            self.low_pass_order = 15
+
         def find_curvature(self):
             # Define conversions in x and y from pixels space to meters
-            ym_per_pix = 29.0/720 # meters per pixel in y dimension
-            xm_per_pix = 3.0/700 # meters per pixel in x dimension
-
+            ym_per_pix = 25.0/720 # meters per pixel in y dimension
+            xm_per_pix = 2.5/700 # meters per pixel in x dimension
             # Fit new polynomials to x,y in world space
             plot_y = self.ploty*ym_per_pix
             left_x = self.left_line.bestx*xm_per_pix
@@ -340,9 +348,9 @@ class Sliding_Window_Search():
             return (self.left_line.radius_of_curvature + self.right_line.radius_of_curvature)/2.0
 
         def find_vehicle_pos(self):
-            ym_per_pix = 29.0/720 # meters per pixel in y dimension
-            xm_per_pix = 3.0/700 # meters per pixel in x dimension
-            vehicle_pos = self.left_line.line_base_pos*xm_per_pix
+            self.xm_per_pix = 3.1/np.absolute(self.left_line.line_base_pos-self.right_line.line_base_pos)
+            ym_per_pix = self.xm_per_pix*30
+            vehicle_pos = np.absolute(self.left_line.line_base_pos - self.midpoint)*self.xm_per_pix
             return vehicle_pos
 
 
@@ -356,7 +364,9 @@ class Sliding_Window_Search():
             out_img = np.dstack((binary_warped, binary_warped, binary_warped))*255
             # Find the peak of the left and right halves of the histogram
             # These will be the starting point for the left and right lines
+            self.midpoint = np.int(binary_warped.shape[1]/2)
             midpoint = np.int(histogram.shape[0]/2)
+            assert(self.midpoint==midpoint)
             leftx_base = np.argmax(histogram[:midpoint])
             rightx_base = np.argmax(histogram[midpoint:]) + midpoint
 
@@ -410,11 +420,32 @@ class Sliding_Window_Search():
             self.left_line.allx = nonzerox[left_lane_inds]
             self.left_line.ally = nonzeroy[left_lane_inds] 
             self.right_line.allx = nonzerox[right_lane_inds]
-            self.right_line.ally = nonzeroy[right_lane_inds] 
+            self.right_line.ally = nonzeroy[right_lane_inds]
+
+            if (self.left_line.allx.size == 0 or self.left_line.ally.size == 0):
+                self.left_line.detected = False
+            else:
+                self.left_line.detected = True
+
+            if (self.right_line.allx.size == 0 or self.right_line.ally.size == 0):
+                self.right_line.detected = False
+            else:
+                self.right_line.detected = True
 
             # Fit a second order polynomial to each
-            self.left_line.current_fit = np.polyfit(self.left_line.ally, self.left_line.allx, 2)
-            self.right_line.current_fit = np.polyfit(self.right_line.ally, self.right_line.allx, 2)
+            left_current_fit = np.polyfit(self.left_line.ally, self.left_line.allx, 2) if self.left_line.detected else self.left_line.all_param[-1]
+            self.left_line.all_param.append(left_current_fit)
+            right_current_fit = self.right_line.current_fit = np.polyfit(self.right_line.ally, self.right_line.allx, 2)  if self.right_line.detected else self.right_line.all_param[-1]
+            self.right_line.all_param.append(right_current_fit)
+
+            if (self.iteration < self.low_pass_order ):
+                self.left_line.current_fit = self.left_line.all_param[-1]
+                self.right_line.current_fit = self.right_line.all_param[-1]
+            else:
+                left_memory = np.stack(self.left_line.all_param[-self.low_pass_order-1:-1])
+                right_memory = np.stack(self.right_line.all_param[-self.low_pass_order-1:-1])
+                self.left_line.current_fit = np.average(left_memory, axis=0)
+                self.right_line.current_fit = np.average(right_memory, axis=0)
 
             # Generate x and y values for plotting
             self.ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0] )
@@ -425,12 +456,12 @@ class Sliding_Window_Search():
             self.right_line.bestx = self.right_line.recent_xfitted
 
             # Calculate distance in meters of vehicle center from the line
-            self.left_line.line_base_pos = np.absolute(np.mean(self.left_line.recent_xfitted)-midpoint)
-            self.right_line.line_base_pos = np.absolute(np.mean(self.right_line.recent_xfitted)-midpoint)
+            self.left_line.line_base_pos = np.absolute(self.left_line.bestx[0])
+            self.right_line.line_base_pos = np.absolute(self.right_line.bestx[0])
 
-            self.left_line.detected = True
-            self.right_line.detected = True
+
             self.iteration += 1
+
 
         def check_for_outliers(self):
 
@@ -464,27 +495,51 @@ class Sliding_Window_Search():
             lefty = nonzeroy[left_lane_inds] 
             rightx = nonzerox[right_lane_inds]
             righty = nonzeroy[right_lane_inds]
+
+
+            if (leftx.size == 0 or lefty.size == 0):
+                self.left_line.detected = False
+            else:
+                self.left_line.detected = True
+
+            if (rightx.size == 0 or righty.size == 0):
+                self.right_line.detected = False
+            else:
+                self.right_line.detected = True
+
             # Fit a second order polynomial to each
-            self.left_line.current_fit = np.polyfit(lefty, leftx, 2)
-            self.right_line.current_fit = np.polyfit(righty, rightx, 2)
+            left_current_fit = np.polyfit(lefty, leftx, 2) if self.left_line.detected else self.left_line.all_param[-1]
+            self.left_line.all_param.append(left_current_fit)
+            right_current_fit = np.polyfit(righty, rightx, 2)  if self.right_line.detected else self.right_line.all_param[-1]
+            self.right_line.all_param.append(right_current_fit)
+
+            if (self.iteration < self.low_pass_order ):
+                self.left_line.current_fit = self.left_line.all_param[-1]
+                self.right_line.current_fit = self.right_line.all_param[-1]
+            else:
+                left_memory = np.stack(self.left_line.all_param[-self.low_pass_order-1:-1])
+                right_memory = np.stack(self.right_line.all_param[-self.low_pass_order-1:-1])
+                self.left_line.current_fit = np.average(left_memory, axis=0)
+                self.right_line.current_fit = np.average(right_memory, axis=0)
+
             # Generate x and y values for plotting
             self.ploty = np.linspace(0, binary_warped.shape[0]-1, binary_warped.shape[0] )
             self.left_line.recent_xfitted = self.left_line.current_fit[0]*self.ploty**2 + self.left_line.current_fit[1]*self.ploty + self.left_line.current_fit[2]
             self.right_line.recent_xfitted = self.right_line.current_fit[0]*self.ploty**2 + self.right_line.current_fit[1]*self.ploty + self.right_line.current_fit[2]
 
-            self.left_line.diff = np.divide(np.absolute(self.left_line.self.left_line.bestx - self.left_line.recent_xfitted), np.absolute(self.left_line.self.left_line.bestx))*100
-            self.right_line.diff = np.divide(np.absolute(self.right_line.bestx - self.right_line.recent_xfitted),np.absolute(self.right_line.self.left_line.bestx))*100
+            self.left_line.diff = np.divide(np.absolute(self.left_line.bestx - self.left_line.recent_xfitted), np.absolute(self.left_line.bestx))*100
+            self.right_line.diff = np.divide(np.absolute(self.right_line.bestx - self.right_line.recent_xfitted),np.absolute(self.left_line.bestx))*100
 
-            self.check_for_outliers()
+            self.left_line.bestx = self.left_line.recent_xfitted
+            self.right_line.bestx = self.right_line.recent_xfitted
 
             # Calculate distance in meters of vehicle center from the line
-            histogram = np.sum(binary_warped[binary_warped.shape[0]/2:,:], axis=0)
-            midpoint = np.int(binary_warped.shape[1]/2)
-            self.left_line.line_base_pos = np.absolute(np.mean(self.left_line.bestx)-midpoint)
-            self.right_line.line_base_pos = np.absolute(np.mean(self.right_line.bestx)-midpoint)
+            self.midpoint = np.int(binary_warped.shape[1]/2)
+            self.left_line.line_base_pos = np.absolute(self.left_line.bestx[0])
+            self.right_line.line_base_pos = np.absolute(self.right_line.bestx[0])
 
-            self.left_line.detected = True
-            self.right_line.detected = True
+
+
             self.iteration += 1
 
 
@@ -501,6 +556,10 @@ class Lane_Line_Detector():
 
         self.frame = 0
 
+        self.preprocessor = Thresholder()
+        self.transformer = Perspective_Transformer()
+        self.line_searcher = Sliding_Window_Search()
+
     def calibrate_camera(self,img):
         calibrator = Camera_Calibrator()
         calibrator.run_camera_calibration(img)
@@ -508,55 +567,56 @@ class Lane_Line_Detector():
 
     def calculate_src_and_dest(self,img):
         img_size = (img.shape[1], img.shape[0])
-        src_w = np.float32([[img_size[0]*0.4, img_size[1]*0.625],[img_size[0] *0.1, img_size[1]], [img_size[0]*0.9725, img_size[1]],[img_size[0]*0.6, img_size[1]*0.625]])
+        src_w = np.float32([[img_size[0]*0.4725, img_size[1]*0.635],[img_size[0]*0.1325, img_size[1]], [img_size[0]*0.925, img_size[1]],[img_size[0]*0.575, img_size[1]*0.635]])
         dst_w = np.float32([[(img_size[0] / 4), 0],[(img_size[0] / 4), img_size[1]],[(img_size[0] * 3 / 4), img_size[1]],[(img_size[0] * 3 / 4), 0]])
         return src_w, dst_w
 
 
     def process_image(self, img):
 
-        preprocessor = Thresholder()
-        transformer = Perspective_Transformer()
-        line_searcher = Sliding_Window_Search()
+        # we only consider edges in region of interest (roi)
+        image = img
 
-        self.src_w, self.dst_w = self.calculate_src_and_dest(img)
-        transformer.set_warp_param(self.src_w,self.dst_w)
+        self.src_w, self.dst_w = self.calculate_src_and_dest(image)
+        self.transformer.set_warp_param(self.src_w,self.dst_w)
 
 
         if (self.frame == 0 ):
             #Calibrate Camera
-            self.calibrate_camera(img)
+            self.calibrate_camera(image)
             
         #Undistort
-        undistorted = cv2.undistort(img, self.mtx, self.dist, None, self.mtx)
+        undistorted = cv2.undistort(image, self.mtx, self.dist, None, self.mtx)
         # Get Binary Mask
-        binary = preprocessor.apply_all(undistorted)
+        binary = self.preprocessor.apply_all(undistorted)
+
         #Perspective Transform
-        warped = transformer.warp(binary)
+        warped = self.transformer.warp(binary)
         #Find Lines
 
         if (self.frame == 0 ):
             #Calibrate Camera
-            line_searcher.blind_histogram_search(warped)
+            self.line_searcher.blind_histogram_search(warped)
         else:
-            line_searcher.blind_histogram_search(warped)
+            self.line_searcher.margin_search(warped)
 
         # Create an image to draw the lines on
         warp_zero = np.zeros_like(warped).astype(np.uint8)
         color_warp = np.dstack((warp_zero, warp_zero, warp_zero))
         # Recast the x and y points into usable format for cv2.fillPoly()
-        pts_left = np.array([np.transpose(np.vstack([line_searcher.left_line.bestx, line_searcher.ploty]))])
-        pts_right = np.array([np.flipud(np.transpose(np.vstack([line_searcher.right_line.bestx, line_searcher.ploty])))])
+        visible = int(self.line_searcher.ploty.shape[0]*0.95)
+        pts_left = np.array([np.transpose(np.vstack([self.line_searcher.left_line.bestx[-visible:], self.line_searcher.ploty[-visible:]]))])
+        pts_right = np.array([np.flipud(np.transpose(np.vstack([self.line_searcher.right_line.bestx[-visible:], self.line_searcher.ploty[-visible:]])))])
         pts = np.hstack((pts_left, pts_right))
         # Draw the lane onto the warped blank image
         cv2.fillPoly(color_warp, np.int_([pts]), (0,255, 0))
         # Warp the blank back to original image space using inverse perspective matrix (Minv)
-        newwarp = transformer.unwarp(color_warp) 
+        newwarp = self.transformer.unwarp(color_warp) 
         # Combine the result with the original image
         result = cv2.addWeighted(img, 1, newwarp, 0.3, 0)
 
-        curvature = line_searcher.find_curvature()
-        v_pos = line_searcher.find_vehicle_pos()
+        v_pos = self.line_searcher.find_vehicle_pos()
+        curvature = self.line_searcher.find_curvature()
 
         text = "Avg curvature = {} m".format(curvature)
         text2 = "Vehicle Pos from Left Lane = {}m ".format(v_pos)
@@ -565,6 +625,8 @@ class Lane_Line_Detector():
         cv2.putText(result,text2,(0,100), font, 1, (255,244,255),2)
 
         self.frame += 1
+
+
 
         return result
 
@@ -600,17 +662,14 @@ class Lane_Line_Detector():
             save_result = Switch to indicate whether you want to save result
         """
         clip = VideoFileClip(filepath)
-        
-
-        result_clip = clip.fl_image(self.process_image)
+        result_clip = clip.fl_image(self.process_image)        
 
         # Save Result 
         if save_result:
             pos = filepath.rfind('/')
-            savepath = "output_files/"+ filepath[pos:]
+            savepath = "output_files/"+filepath[pos:]
             print("\n Saving video at: {}".format(savepath))
             result_clip.write_videofile(savepath, audio=False)
-
 
 
 
@@ -625,7 +684,8 @@ def subsystems_test():
     #Pipeline
 
     ##Undistort
-    img = cv2.imread('test_files/test2.jpg')
+    test_file = 'test_files/test3.jpg'
+    img = cv2.imread(test_file)
     img_size = (img.shape[1], img.shape[0])
     undistorted = cv2.undistort(img, mtx, dist, None, mtx)
 
@@ -635,6 +695,8 @@ def subsystems_test():
     preprocessor.test(undistorted)
     cv2.imwrite('figures/corrected.jpg',undistorted)
     binary = preprocessor.apply_all(undistorted)
+
+    cv2.imwrite('figures/binary.jpg',binary*255)
 
     ##Transform
     line_searcher = Lane_Line_Detector()
@@ -651,7 +713,7 @@ def subsystems_test():
     ##Search and Fit
     line_searcher = Sliding_Window_Search()
     line_searcher.blind_histogram_search(warped)
-    line_searcher.blind_histogram_search(warped)
+    line_searcher.margin_search(warped)
 
     color_warp = np.dstack((warped*255, warped*255, warped*255))
     # Recast the x and y points into usable format for cv2.fillPoly()
@@ -662,7 +724,11 @@ def subsystems_test():
     cv2.fillPoly(color_warp, np.int_([pts]), (0,255, 0))
     cv2.imwrite('figures/dest.jpg',color_warp)
 
-
+    
+    line_detector = Lane_Line_Detector()
+    line_detector.find_lanes_image(test_file)
+    
+    
     ##Whole Process for images
     images = glob.glob("test_files/*.jpg")
     for idx, fname in enumerate(images):
@@ -670,10 +736,11 @@ def subsystems_test():
         line_detector.find_lanes_image(fname)
     
 
+    
     line_detector = Lane_Line_Detector()
     line_detector.find_lanes_video("test_files/project_video.mp4")
     
-
+    
 
 
 

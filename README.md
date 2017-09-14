@@ -35,7 +35,7 @@ You're reading it!
 
 #### 1. Briefly state how you computed the camera matrix and distortion coefficients. Provide an example of a distortion corrected calibration image.
 
-The whole camera calibration process is implemented in the Camera_Calibrator class in line 53 of lanelines.py. The  extract_calibration_points() method in line 64 obtains "object points" (real position of the chessboard corners in the world) and the "image points" (position of corners in the image). With those, the calibrate_camera() method in line 98 calculates the camera calibration and distortion coefficients. Those coefficients are used in cv2.undistort() to undistort an image.
+The whole camera calibration process is implemented in the Camera_Calibrator class in line 56 of lanelines.py. The  extract_calibration_points() method in line 66 obtains "object points" (real position of the chessboard corners in the world) and the "image points" (position of corners in the image). With those, the calibrate_camera() method in line 100 calculates the camera calibration and distortion coefficients. Those coefficients are used in cv2.undistort() to undistort an image.
 
 The distortion correction can be displayed in the following images. The correction is more obviously seen in the top border of the image.
 
@@ -53,12 +53,10 @@ The distortion correction can be displayed in the following images. The correcti
 
 #### 2. Describe how (and identify where in your code) you used color transforms, gradients or other methods to create a thresholded binary image.  Provide an example of a binary image result.
 
-The thesholded binary is produced by the apply_all() method of the Thresholder class in line 254. A mask is used first to only consider the expected location of the road. (line 259). Then, the horizontal gradient, vertical gradient, magnitude of the gradient, direction of the gradient, S channel and L channel (in HLS space)are combines as follow in line 273:
+The thesholded binary is produced by the apply_all() method of the Thresholder class in line 250. A mask is used first to only consider the expected location of the road. (line 256). The logic combining binaries is as follows: (line 279):
 
 ```python
-gradient_bin[( ( (gradx == 1) | (grady == 1)| (s_binary == 1) ) & ((dir_binary == 1) & (mag_binary == 1)) )] = 1
-...
-combined_binary[(gradient_bin == 1) | (l_binary == 1)] = 1
+combined_binary[((s_binary == 1)  & (mag_binary == 1)) | (l_binary == 1)] = 1
 ```
 The result of this is:
 
@@ -66,14 +64,14 @@ The result of this is:
 
 #### 3. Describe how (and identify where in your code) you performed a perspective transform and provide an example of a transformed image.
 
-In line 134, the method warp() of the class Perspective_Transformer transforms the image. The source and destination are calculated in line 509 as follow:
+In line 134, the method warp() of the class Perspective_Transformer transforms the image. The source and destination are calculated in line 568 as follow:
 
 ```python
-def calculate_src_and_dest(self,img):
-    img_size = (img.shape[1], img.shape[0])
-    src_w = np.float32([[img_size[0]*0.4, img_size[1]*0.625],[img_size[0] *0.1, img_size[1]], [img_size[0]*0.9725, img_size[1]],[img_size[0]*0.6, img_size[1]*0.625]])
-    dst_w = np.float32([[(img_size[0] / 4), 0],[(img_size[0] / 4), img_size[1]],[(img_size[0] * 3 / 4), img_size[1]],[(img_size[0] * 3 / 4), 0]])
-    return src_w, dst_w
+    def calculate_src_and_dest(self,img):
+        img_size = (img.shape[1], img.shape[0])
+        src_w = np.float32([[img_size[0]*0.4725, img_size[1]*0.635],[img_size[0]*0.1325, img_size[1]], [img_size[0]*0.925, img_size[1]],[img_size[0]*0.575, img_size[1]*0.635]])
+        dst_w = np.float32([[(img_size[0] / 4), 0],[(img_size[0] / 4), img_size[1]],[(img_size[0] * 3 / 4), img_size[1]],[(img_size[0] * 3 / 4), 0]])
+        return src_w, dst_w
 ```
 
 The results in the original image and in the binary warped image are:
@@ -87,8 +85,8 @@ The results in the original image and in the binary warped image are:
 
 #### 4. Describe how (and identify where in your code) you identified lane-line pixels and fit their positions with a polynomial?
 
-The method blind_histogram_search() in line 350, and margin_search() in line 445 find the points to fit the polynomial, and fit a curve.
-The first method is only used in the first frame, when we search all over the image for the possible lane lines. After the first frame, margin_search uses the past location to search locally.
+The method blind_histogram_search() in line 358, and margin_search() in line 476 find the points to fit the polynomial, and fit a curve.
+The first method is only used in the first frame, when we search all over the image for the possible lane lines. After the first frame, margin_search uses the past location to search locally. The polynomial coefficients are averged on a time window of 20.
 
 
 The resulting area enclosed look as follow:
@@ -97,13 +95,12 @@ The resulting area enclosed look as follow:
 
 #### 5. Describe how (and identify where in your code) you calculated the radius of curvature of the lane and the position of the vehicle with respect to center.
 
-The following methods in line 321 are part of the Sliding_Window_Search()  class and calculate the curvature, and vehicle position respectively:
+The following methods in line 330 are part of the Sliding_Window_Search()  class and calculate the curvature, and vehicle position respectively:
 ```python
     def find_curvature(self):
         # Define conversions in x and y from pixels space to meters
-        ym_per_pix = 29.0/720 # meters per pixel in y dimension
-        xm_per_pix = 3.0/700 # meters per pixel in x dimension
-
+        ym_per_pix = 25.0/720 # meters per pixel in y dimension
+        xm_per_pix = 2.5/700 # meters per pixel in x dimension
         # Fit new polynomials to x,y in world space
         plot_y = self.ploty*ym_per_pix
         left_x = self.left_line.bestx*xm_per_pix
@@ -121,15 +118,15 @@ The following methods in line 321 are part of the Sliding_Window_Search()  class
         return (self.left_line.radius_of_curvature + self.right_line.radius_of_curvature)/2.0
 
     def find_vehicle_pos(self):
-        ym_per_pix = 29.0/720 # meters per pixel in y dimension
-        xm_per_pix = 3.0/700 # meters per pixel in x dimension
-        vehicle_pos = self.left_line.line_base_pos*xm_per_pix
+        self.xm_per_pix = 3.1/np.absolute(self.left_line.line_base_pos-self.right_line.line_base_pos)
+        ym_per_pix = self.xm_per_pix*30
+        vehicle_pos = np.absolute(self.left_line.line_base_pos - self.midpoint)*self.xm_per_pix
         return vehicle_pos
 ```
 
 #### 6. Provide an example image of your result plotted back down onto the road such that the lane area is identified clearly.
 
-Using the unwarp method in (line 554), we are able to obtain the following result:
+Using the unwarp method in (line 616), we are able to obtain the following result:
 
 ![alt text](./output_files/test2.jpg "final result")
 
@@ -150,8 +147,6 @@ Here's a [link to my video result](./output_files/project_video.mp4)
 
 #### 1. Briefly discuss any problems / issues you faced in your implementation of this project.  Where will your pipeline likely fail?  What could you do to make it more robust?
 
-
-- I do not use any type of filtering. Therefore, this pipeline is not very robust to outliers, which can be caused by sudden change in light conditions for instance. To add robustness, averaging the fitted coefficients over a time window could be added.
 
 - This pipeline does not work real-time. The image could be subsampled/compressed to improve the time-efficiency.
 
