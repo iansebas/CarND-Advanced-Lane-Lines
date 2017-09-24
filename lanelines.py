@@ -348,7 +348,7 @@ class Sliding_Window_Search():
             return (self.left_line.radius_of_curvature + self.right_line.radius_of_curvature)/2.0
 
         def find_vehicle_pos(self):
-            self.xm_per_pix = 3.1/np.absolute(self.left_line.line_base_pos-self.right_line.line_base_pos)
+            self.xm_per_pix = 3.9/np.absolute(self.left_line.line_base_pos-self.right_line.line_base_pos)
             ym_per_pix = self.xm_per_pix*30
             vehicle_pos = np.absolute(self.left_line.line_base_pos - self.midpoint)*self.xm_per_pix
             return vehicle_pos
@@ -456,8 +456,8 @@ class Sliding_Window_Search():
             self.right_line.bestx = self.right_line.recent_xfitted
 
             # Calculate distance in meters of vehicle center from the line
-            self.left_line.line_base_pos = np.absolute(self.left_line.bestx[0])
-            self.right_line.line_base_pos = np.absolute(self.right_line.bestx[0])
+            self.left_line.line_base_pos = np.absolute(self.left_line.bestx[-1])
+            self.right_line.line_base_pos = np.absolute(self.right_line.bestx[-1])
 
 
             self.iteration += 1
@@ -535,8 +535,8 @@ class Sliding_Window_Search():
 
             # Calculate distance in meters of vehicle center from the line
             self.midpoint = np.int(binary_warped.shape[1]/2)
-            self.left_line.line_base_pos = np.absolute(self.left_line.bestx[0])
-            self.right_line.line_base_pos = np.absolute(self.right_line.bestx[0])
+            self.left_line.line_base_pos = np.absolute(self.left_line.bestx[-1])
+            self.right_line.line_base_pos = np.absolute(self.right_line.bestx[-1])
 
 
 
